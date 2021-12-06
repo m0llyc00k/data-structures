@@ -1,4 +1,4 @@
-var express = require('express'), 
+var express = require('express'),
     app = express();
 const { Pool } = require('pg');
 var AWS = require('aws-sdk');
@@ -27,7 +27,45 @@ var hx = `<!doctype html>
   <title>AA Meetings</title>
   <meta name="description" content="Meetings of AA in Manhattan">
   <meta name="author" content="AA">
-  <link rel="stylesheet" href="css/styles.css?v=1.0">
+  <style>
+   #mapid { height: 760px; }
+
+table {
+  border-collapse: collapse;
+  font-family: sans-serif;
+}
+
+table, th, td {
+  border: 1px solid black;
+}
+
+h3, p {
+    font-family: sans-serif;
+}
+
+p {
+    color: red;
+}
+
+td {
+  border-top:0pt none;
+  margin-top:0pt;
+  padding-bottom:5px;
+  padding-left:12px;
+  padding-right:12px;
+  padding-top:5px;
+}
+
+.blinking{
+    animation:blinkingText 1.5s linear infinite;
+}
+@keyframes blinkingText{
+  50% {
+    opacity: 0;
+  }
+}
+  
+  </style>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.6.0/dist/leaflet.css"
        integrity="sha512-xwE/Az9zrjBIphAcBb3F6JVqxf46+CDLwfLMHloNu6KEQCAWi6HcDUbeOfBIptF7tcCzusKFjFw2yuvEpDL9wQ=="
        crossorigin=""/>
@@ -40,7 +78,7 @@ var hx = `<!doctype html>
   <script>
   var data = 
   `;
-  
+
 var jx = `;
     var mymap = L.map('mapid').setView([40.734636,-73.994997], 13);
     L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_token={accessToken}', {
@@ -52,7 +90,7 @@ var jx = `;
         accessToken: 'pk.eyJ1Ijoidm9ucmFtc3kiLCJhIjoiY2pveGF1MmxoMjZnazNwbW8ya2dsZTRtNyJ9.mJ1kRVrVnwTFNdoKlQu_Cw'
     }).addTo(mymap);
     for (var i=0; i<data.length; i++) {
-        L.marker( [data[i].lat, data[i].lon] ).bindPopup(JSON.stringify(data[i].meetings)).addTo(mymap);
+        L.marker( [data[i].lat, data[i].long] ).bindPopup(JSON.stringify(data[i].meetings)).addTo(mymap);
     }
     </script>
     </body>
@@ -61,30 +99,85 @@ var jx = `;
 
 app.get('/', function(req, res) {
     res.send('<h3>Code demo site</h3><ul><li><a href="/aa">aa meetings</a></li><li><a href="/processblog">process blog</a></li></ul>');
-}); 
+});
 
 
 
 // respond to requests for /aa
 app.get('/aa', function(req, res) {
 
-    var now = moment.tz(Date.now(), "America/New_York"); 
-    var dayy = now.day().toString(); 
-    var hourr = now.hour().toString(); 
+    var now = moment.tz(Date.now(), "America/New_York");
+    // var dayy = now.day().toString(); 
+    // var hourr = now.hour().toString(); 
+    var raw_dayy = now.day().toString();
+    var raw_hourr = now.hour().toString();
+
+    var dayy, hourr;
+
+    switch (now.day().toString()) {
+        case '1':
+            // code
+            dayy = `'Mondays'`
+            break;
+        case '2':
+            //code
+            dayy = `'Tuesdays'`
+            break;
+        case '3':
+            // code
+            dayy = `'Wednesdays'`
+            break;
+        case '4':
+            // code
+            dayy = `'Thursdays'`
+            break;
+        case '5':
+            // code
+            dayy = `'Fridays'`
+            break;
+        case '6':
+            // code
+            dayy = `'Saturdays'`
+            break;
+        case '7':
+            // code
+            dayy = `'Sundays'`
+            break;
+        default:
+            dayy = 'Mondays'
+    }
+
+    // console.log('raw_dayy is', raw_dayy)
+    // console.log('dayy is', dayy)
 
     // Connect to the AWS RDS Postgres database
     const client = new Pool(db_credentials);
-    
+
+
+    //var thisQuery = "INSERT INTO AA_meeting_data(address,lat,long,zipCode,zone,venue,roomDetail,directionDetail,groupName,wheelchairAccess,miscDetails,day,trueStartTime,trueEndTime,meetingType,specialInerest) VALUES ($$" + value.thisMeeting.address + "$$, $$" + value.latLong.lat + "$$, $$" + value.latLong.long + "$$, $$" + value.thisMeeting.zipCode + "$$, $$" + value.thisMeeting.zone + "$$, $$" + value.thisMeeting.venue + "$$, $$" + value.thisMeeting.roomDetail + "$$, $$" + value.thisMeeting.directionDetail + "$$, $$" + value.thisMeeting.groupName + "$$, $$" + value.thisMeeting.wheelchairAccess + "$$, $$" + value.thisMeeting.miscDetails + "$$, $$" + value.thisMeeting.meetingDetails.day + "$$, $$" + value.thisMeeting.meetingDetails.trueStartTime + "$$, $$" + value.thisMeeting.meetingDetails.trueEndTime + "$$, $$" + value.thisMeeting.meetingDetails.meetingType + "$$, $$" + value.thisMeeting.meetingDetails.specialInerest + "$$);";
+
     // SQL query 
-    var thisQuery = `SELECT lat, long, json_agg(json_build_object('zipCode', zipCode, 'zone', zone, 'venue', venue, 'roomDetail', roomDetail, 'directionDetail', directionDetail, 'groupName', groupName, 'wheelchairAccess', wheelchairAccess, 'day', day, 'trueStartTime', trueStartTime, 'trueEndTime', trueEndTime, 'meetingType', meetingType, 'specialInerest', specialInerest)) as meetings
-                 FROM AA_meeting_data 
-                 WHERE day = ` + dayy + 'and trueStartTime >= ' + hourr + 
-                 `GROUP BY lat, long
-                 ;`;
+    var thisQuery = `
+                SELECT lat, long, json_agg(json_build_object('loc', directionDetail, 'address', address, 'time', trueStartTime, 'name', groupName, 'day', day, 'types', specialInerest, 'shour', trueStartTime)) as meetings
+                 FROM aa_meeting_data
+                 WHERE day = ` + dayy + `
+                 GROUP BY lat, long`
+
+
+    // SQL query 
+    //   var thisQuery = `
+    //             SELECT lat, long, json_agg(json_build_object('loc', directionDetail, 'address', address, 'time', trueStartTime, 'name', groupName, 'day', day, 'types', specialInerest, 'shour', trueStartTime)) as meetings
+    //              FROM aa_meeting_data
+    //              WHERE day = 'Mondays'
+    //              GROUP BY lat, long`
+
+
+
+
 
     client.query(thisQuery, (qerr, qres) => {
         if (qerr) { throw qerr }
-        
+
         else {
             var resp = hx + JSON.stringify(qres.rows) + jx;
             res.send(resp);
@@ -128,15 +221,18 @@ app.get('/processblog', function(req, res) {
 
     // DynamoDB (NoSQL) query
     var params = {
-        TableName : "processBlog",
+        TableName: "processBlog",
         KeyConditionExpression: "breadType = :bread and #hours between :minHours and :maxHours", // the query expression
+        ExpressionAttributeNames: { // name substitution, used for reserved words in DynamoDB. I added hours here but didn't need to.
+            "#hours": "totalTimeHours"
+        },
         ExpressionAttributeValues: { // the query values
-        ":bread": {S: "Wheat"},
-        ":minHours": {N: (7).toString()},
-        ":maxHours": {N: (16).toString()}
+            ":bread": { S: "Wheat" },
+            ":minHours": { N: (7).toString() },
+            ":maxHours": { N: (16).toString() }
         }
     };
-    
+
 
     dynamodb.query(params, function(err, data) {
         if (err) {
@@ -144,7 +240,7 @@ app.get('/processblog', function(req, res) {
             throw (err);
         }
         else {
-            res.end(pbtemplate({ pbdata: JSON.stringify(data.Items)}));
+            res.end(pbtemplate({ pbdata: JSON.stringify(data.Items) }));
             console.log('3) responded to request for process blog data');
         }
     });
@@ -154,8 +250,8 @@ app.get('/processblog', function(req, res) {
 // serve static files in /public
 app.use(express.static('public'));
 
-app.use(function (req, res, next) {
-  res.status(404).send("Sorry can't find that!");
+app.use(function(req, res, next) {
+    res.status(404).send("Sorry can't find that!");
 });
 
 // listen on port 8080
@@ -164,4 +260,3 @@ var port = process.env.PORT || 8080;
 app.listen(port, function() {
     console.log('Server listening...');
 });
-
